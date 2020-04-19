@@ -1,11 +1,9 @@
-// C Program to design a shell in Linux 
 #include<stdio.h> 
 #include<string.h> 
 #include<stdlib.h> 
 #include<unistd.h> 
 #include<sys/types.h> 
 #include<sys/wait.h>
-//to read whole line from terminal(bcz %s will not helpful here)
 #include<readline/readline.h> 
 //to make command history 
 //install this library by followng command //////////////////////sudo apt-get install libreadline-dev/////////////////////
@@ -19,6 +17,16 @@
  
 char userr[1000];
 // will be executed when shell will start
+
+char* remove_spaces(char* s)
+{
+	char *temp;
+	for(int i=0;;i++)
+	{
+		if(s[i]=='\0' || s[i]!=' ')
+		return temp = s+i;
+	}
+}
 void init_shell() 
 { 
 	clear(); 
@@ -30,19 +38,22 @@ void init_shell()
 		"***********************"); 
 	char* username = getenv("USER"); 
 	printf("\n\n\nDefault user is: @%s", username); 
-	printf("\nEnter your username for terminal\n"); 
-	scanf("%s",userr);
-	clear(); 
+	printf("\nEnter your username for terminal\n");
+	char* temp;
+	temp = readline("");
+	temp = remove_spaces(temp);
+	if(!strlen(temp))temp = username;
+	strcpy(userr,temp);
+	clear();
 } 
 
 // Function to take input 
 int takeInput(char* str) 
 { 
-	char* buf; 
-
-	buf = readline("\n>>> "); 
+	char* buf;
+	buf = readline("\n>>> ");
+	buf = remove_spaces(buf); 
 	if (strlen(buf) != 0) { 
-//if length of command is not 0 then add it to history
 		add_history(buf);
 		strcpy(str, buf); 
 		return 0; 
@@ -56,7 +67,7 @@ void printDir()
 { 
 	char cwd[1024]; 
 	getcwd(cwd, sizeof(cwd)); 
-	printf("\n%s@@Dir: %s",userr,cwd); 
+	printf("\n%s@Dir: %s",userr,cwd); 
 } 
 
 // Function where the system command is executed 
@@ -90,7 +101,7 @@ void execArgsPiped(char** parsed, char** parsedpipe)
 	if (pipe(pipefd) < 0) { 
 		printf("\nPipe could not be initialized"); 
 		return; 
-	} 
+	}
 	p1 = fork(); 
 	if (p1 < 0) { 
 		printf("\nCould not fork"); 
@@ -129,6 +140,8 @@ void execArgsPiped(char** parsed, char** parsedpipe)
 			} 
 		} else { 
 			// parent executing, waiting for two children 
+			close(pipefd[0]); 
+			close(pipefd[1]); 
 			wait(NULL); 
 			wait(NULL); 
 		} 
@@ -226,9 +239,13 @@ int processString(char* str, char** parsed, char** parsedpipe)
     //cheak weather there is pipe in input or not 
 	piped = parsePipe(str, strpiped); 
 
-	if (piped) { 
+	if (piped) {
+		printf("%s,%s",strpiped[0],strpiped[1]);
+		fflush(stdout);
 		parseSpace(strpiped[0], parsed); 
 		parseSpace(strpiped[1], parsedpipe); 
+		printf("%s,%s",strpiped[0],strpiped[1]);
+		// sleep(10);
 
 	} else { 
 
@@ -250,7 +267,7 @@ int main()
 
 	while (1) { 
 		// print shell line 
-		printDir(); 
+		printDir();
 		// take input 
 		//takeInput returns 1 if length of given command is 0
 		if (takeInput(inputString)) 
