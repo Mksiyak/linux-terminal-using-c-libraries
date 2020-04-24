@@ -309,8 +309,9 @@ void parseSpace(char* str, char** parsed)
 { 
 	int i; 
     str = remove_spaces(str);
-	for (i = 0; i < MAXLIST; i++) { 
-		parsed[i] = strsep(&str, " "); 
+	for (i = 0; i < MAXLIST; i++) {
+		char *temp;
+		parsed[i] = strsep(&str, " ");
 		if (parsed[i] == NULL) 
 			break; 
 		if (strlen(parsed[i]) == 0) 
@@ -331,7 +332,14 @@ int processString(char* str, char*** parsed)
 } 
 int main() 
 { 
-	char inputString[MAXCOM], **parsedArgs[MAXLIST]; 
+	char inputString[MAXCOM], ***parsedArgs; 
+	parsedArgs = calloc(MAXLIST,sizeof(char**));
+	for(int z = 0; z < MAXLIST; z++) { 
+    	parsedArgs[z] = calloc(MAXLIST, sizeof(char*));
+    	for(int i = 0; i < MAXLIST; i++) {
+        	parsedArgs[z][i] = calloc(MAXLIST, sizeof(char));
+    	}
+	}
 	int execFlag = 0; 
 	init_shell(); 
 	while (1) { 
