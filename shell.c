@@ -2,9 +2,13 @@
 #include<string.h> 
 #include<stdlib.h> 
 #include<unistd.h> 
+#include <linux/limits.h>
+#include <libgen.h>
 #include<sys/types.h> 
+#include<sys/stat.h> 
 #include<sys/wait.h>
 #include<readline/readline.h> 
+#include<fcntl.h>
 //to make command history 
 //install this library by followng command //////////////////////sudo apt-get install libreadline-dev/////////////////////
 #include<readline/history.h> 
@@ -16,6 +20,7 @@
 #define clear() printf("\033[H\033[J") 
  
 char userr[1000];
+int no_of_pipes = 0;
 // will be executed when shell will start
 
 char* remove_spaces(char* s)
@@ -30,12 +35,8 @@ char* remove_spaces(char* s)
 void init_shell() 
 { 
 	clear(); 
-	printf("\n\n\n\n******************"
-		"************************"); 
-	printf("\n\n\n\t****SMPLE SHELL****"); 
-	printf("\n\n\t-USE TO EXECUTE BASIC TERMINAL COMMANDS-"); 
-	printf("\n\n\n\n*******************"
-		"***********************"); 
+	printf("\nOperating Systems Mini Project");
+	printf("\n*******************************"); 
 	char* username = getenv("USER"); 
 	printf("\n\n\nDefault user is: @%s", username); 
 	printf("\nEnter your username for terminal\n");
@@ -62,7 +63,6 @@ int takeInput(char* str)
 	} 
 } 
 
-// Function to print Current Directory. 
 void printDir() 
 { 
 	char cwd[1024]; 
@@ -70,85 +70,119 @@ void printDir()
 	printf("\n%s@Dir: %s",userr,cwd); 
 } 
 
-// Function where the system command is executed 
-void execArgs(char** parsed) 
-{ 
-	// Forking a child  
+void execArgs(char*** parsed) 
+{
+    char *file = parsed[0][0],*inp=NULL,*out=NULL;
+    char *argv[MAXLIST];
+    for(int i=0;parsed[0][i]!=NULL;i++)
+    {
+        argv[i]=parsed[0][i];
+		if(i>0 && argv[i-1]!=NULL && strcmp(argv[i-1],"<")==0)
+		{
+			inp = argv[i];
+			argv[i-1]=argv[i]=NULL;
+		}
+		if(i>0 && argv[i-1]!=NULL && strcmp(argv[i-1],">")==0)
+		{
+			out = argv[i];
+			argv[i-1]=argv[i]=NULL;
+		}
+    }
 	pid_t pid = fork(); 
-
 	if (pid == -1) { 
 		printf("\nFailed forking child.."); 
 		return; 
 	} else if (pid == 0) { 
-		if (execvp(parsed[0], parsed) < 0) { 
+		if(inp!=NULL)
+		{
+			int fp = open(inp,O_RDONLY);
+			dup2(fp,STDIN_FILENO);
+		}
+		if(out!=NULL)
+		{	
+			int fp = open(out,O_CREAT | O_APPEND | O_WRONLY);
+			dup2(fp,STDOUT_FILENO);
+		}
+		if (execvp(file, argv) < 0) { 
 			printf("\nCould not execute command.."); 
-		} 
+		}
 		exit(0); 
 	} else { 
-		// waiting for child to terminate 
 		wait(NULL); 
 		return; 
 	} 
 } 
 
-// Function where the piped system commands is executed 
-void execArgsPiped(char** parsed, char** parsedpipe) 
+void execArgsPiped(char*** parsed) 
 { 
-	// 0 is read end, 1 is write end 
-	int pipefd[2]; 
-	pid_t p1, p2; 
+	int fd[2],commandno = 0,fdd=0;
+	pid_t pid;
+	while(commandno<=no_of_pipes)
+	{
+		pipe(fd);
+		pid = fork();
+		if(pid<0)
+		{
+			printf("fork failed when %d\n",commandno);
+		}
+		if(pid==0)
+		{
+			int i;
+			char *file = parsed[commandno][0],*inp=NULL,*out=NULL;
+  			char *argv[MAXLIST];
+    		for(i=0;parsed[commandno][i]!=NULL;i++)
+    		{
+    		    argv[i]=parsed[commandno][i];
+				if(i>0 && argv[i-1]!=NULL && strcmp(argv[i-1],"<")==0)
+				{
+					inp = argv[i];
+					argv[i-1]=argv[i]=NULL;
+				}
+				if(i>0 && argv[i-1]!=NULL && strcmp(argv[i-1],">")==0)
+				{
+					out = argv[i];
+					argv[i-1]=argv[i]=NULL;
+				}
+    		}
+			for(;i<MAXLIST;i++)
+			{
+				argv[i] = NULL;
+			}
+			if(inp!=NULL)
+			{
+				int fp = open(inp,O_RDONLY);
+				dup2(fp,STDIN_FILENO);
+			}
+			else
+			{
+				dup2(fdd,0);	
+			}
+			if(out!=NULL)
+			{	
+				int fp = open(out,O_CREAT | O_APPEND | O_WRONLY);
+				dup2(fp,STDOUT_FILENO);
+			}
+			else if(commandno!=no_of_pipes && dup2(fd[1],1)<0)
+			{
+				printf("dup2 failed when %d\n",commandno);
+			}
+			close(fd[0]);
+			if(execvp(file,argv)<0)
+			{
+				printf("excvp failed at %d",commandno);
+			}
+			exit(0);
+		}
+		else
+		{
+			close(fd[1]);
+			wait(NULL);
+			fdd = fd[0];
+			commandno++;
+		}
+	}	
+}
 
-	if (pipe(pipefd) < 0) { 
-		printf("\nPipe could not be initialized"); 
-		return; 
-	}
-	p1 = fork(); 
-	if (p1 < 0) { 
-		printf("\nCould not fork"); 
-		return; 
-	} 
-
-	if (p1 == 0) { 
-		// Child 1 executing.. 
-		// It only needs to write at the write end 
-		close(pipefd[0]); 
-		dup2(pipefd[1], STDOUT_FILENO); 
-		close(pipefd[1]); 
-
-		if (execvp(parsed[0], parsed) < 0) { 
-			printf("\nCould not execute command 1.."); 
-			exit(0); 
-		} 
-	} else { 
-		// Parent executing 
-		p2 = fork(); 
-
-		if (p2 < 0) { 
-			printf("\nCould not fork"); 
-			return; 
-		} 
-
-		// Child 2 executing.. 
-		// It only needs to read at the read end 
-		if (p2 == 0) { 
-			close(pipefd[1]); 
-			dup2(pipefd[0], STDIN_FILENO); 
-			close(pipefd[0]); 
-			if (execvp(parsedpipe[0], parsedpipe) < 0) { 
-				printf("\nCould not execute command 2.."); 
-				exit(0); 
-			} 
-		} else { 
-			// parent executing, waiting for two children 
-			close(pipefd[0]); 
-			close(pipefd[1]); 
-			wait(NULL); 
-			wait(NULL); 
-		} 
-	} 
-} 
-
-// Help command builtin 
 void openHelp() 
 { 
 	puts("\n***WELCOME TO HELP***"
@@ -161,18 +195,68 @@ void openHelp()
 		"\n>improper space handling"); 
      	return; 
 } 
+void check()
+{
+	fflush(stdout);
+	sleep(2);
+}
+int checkifexecutable(const char *filename)
+{
+	printf("%s\n",filename);
+     int result;
+     struct stat statinfo;
+     
+     result = stat(filename, &statinfo);
+     if (result < 0) return 0;
+     if (!S_ISREG(statinfo.st_mode)) return 0;
 
-// Function to execute builtin commands 
+     if (statinfo.st_uid == geteuid()) return statinfo.st_mode & S_IXUSR;
+     if (statinfo.st_gid == getegid()) return statinfo.st_mode & S_IXGRP;
+     return statinfo.st_mode & S_IXOTH;
+}
+int findpathof(char *pth,char *exe)
+{
+     char *searchpath;
+     char *beg, *end;
+     int stop, found;
+     int len;
+     searchpath = getenv("PATH");
+     if (searchpath == NULL) return 0;
+     if (strlen(searchpath) <= 0) return 0;
+     beg = searchpath;
+     stop = 0; found = 0;
+	 printf("trying in these paths\n");
+     do {
+	  end = strchr(beg, ':');
+	  if (end == NULL) {
+	       stop = 1;
+	       strncpy(pth, beg, PATH_MAX);
+	       len = strlen(pth);
+	  } else {
+		   long int temp = end-beg;
+	       strncpy(pth, beg, temp);
+	       pth[end - beg] = '\0';
+	       len = end - beg;
+	  }
+	  if (pth[len - 1] != '/') strcat(pth, "/");
+	  strncat(pth, exe, PATH_MAX - len);
+	  found = checkifexecutable(pth);
+	  if (!stop) beg = end + 1;
+     } while (!stop && !found);
+	  
+     return found;
+}
+
 int ownCmdHandler(char** parsed) 
 { 
-	int NoOfOwnCmds = 3, i, switchOwnArg = 0; 
+	int NoOfOwnCmds = 4, i, switchOwnArg = 0; 
 	char* ListOfOwnCmds[NoOfOwnCmds]; 
-	char* username; 
+	char* username,path[5000]; 
 
 	ListOfOwnCmds[0] = "exit"; 
 	ListOfOwnCmds[1] = "cd"; 
 	ListOfOwnCmds[2] = "help"; 
-   //cheak which command is given
+	ListOfOwnCmds[3] = "wch"; 
 	for (i = 0; i < NoOfOwnCmds; i++) { 
 		if (strcmp(parsed[0], ListOfOwnCmds[i]) == 0) { 
 			switchOwnArg = i + 1; 
@@ -190,6 +274,16 @@ int ownCmdHandler(char** parsed)
 	case 3: 
 		openHelp(); 
 		return 1; 
+	case 4:
+		if (!findpathof(path, parsed[1])) {
+	  	printf("No executable \"%s\" found\n", parsed[1]);
+     	}
+		else
+		{
+			printf("found it here : ");
+		 	puts(path);
+		}
+		return 1;
 	default: 
 		break; 
 	} 
@@ -197,95 +291,63 @@ int ownCmdHandler(char** parsed)
 	return 0; 
 } 
 
-// function for finding pipe 
-int parsePipe(char* str, char** strpiped) 
+void parsePipe(char* str, char** strpiped) 
 { 
 	int i; 
-	for (i = 0; i < 2; i++) { 
-		//strsep linux inbuilt command
+	for (i = 0; i < MAXLIST; i++) { 
 		strpiped[i] = strsep(&str, "|"); 
 		if (strpiped[i] == NULL) 
-			break; 
-	} 
-
-	if (strpiped[1] == NULL) 
-		return 0; // returns zero if no pipe is found. 
-	else { 
-		return 1; 
-	} 
+		{no_of_pipes = i-1; break;}
+	}
 } 
 
-// function for parsing command words 
 void parseSpace(char* str, char** parsed) 
 { 
 	int i; 
-
-	for (i = 0; i < MAXLIST; i++) { 
-		//strsep linux inbuilt command
-		parsed[i] = strsep(&str, " "); 
-
+    str = remove_spaces(str);
+	for (i = 0; i < MAXLIST; i++) {
+		char *temp;
+		parsed[i] = strsep(&str, " ");
 		if (parsed[i] == NULL) 
 			break; 
 		if (strlen(parsed[i]) == 0) 
 			i--; 
-	} 
+	}
 } 
 
-int processString(char* str, char** parsed, char** parsedpipe) 
+int processString(char* str, char*** parsed) 
 { 
 
-	char* strpiped[2]; 
-	int piped = 0; 
-    //cheak weather there is pipe in input or not 
-	piped = parsePipe(str, strpiped); 
-
-	if (piped) {
-		printf("%s,%s",strpiped[0],strpiped[1]);
-		fflush(stdout);
-		parseSpace(strpiped[0], parsed); 
-		parseSpace(strpiped[1], parsedpipe); 
-		printf("%s,%s",strpiped[0],strpiped[1]);
-		// sleep(10);
-
-	} else { 
-
-		parseSpace(str, parsed); 
-	} 
-
-	if (ownCmdHandler(parsed)) 
-		return 0; 
-	else
-		return 1 + piped; 
+	char* strpiped[MAXLIST]; 
+	parsePipe(str, strpiped); 
+        for(int i=0;i<=no_of_pipes;i++)
+		parseSpace(strpiped[i], parsed[i]);
+        if(no_of_pipes==0 && ownCmdHandler(parsed[0]))
+        return 0;
+		return 1+(no_of_pipes>0) ; 
 } 
-
 int main() 
 { 
-	char inputString[MAXCOM], *parsedArgs[MAXLIST]; 
-	char* parsedArgsPiped[MAXLIST]; 
+	char inputString[MAXCOM], ***parsedArgs; 
+	parsedArgs = calloc(MAXLIST,sizeof(char**));
+	for(int z = 0; z < MAXLIST; z++) { 
+    	parsedArgs[z] = calloc(MAXLIST, sizeof(char*));
+    	for(int i = 0; i < MAXLIST; i++) {
+        	parsedArgs[z][i] = calloc(MAXLIST, sizeof(char));
+    	}
+	}
 	int execFlag = 0; 
 	init_shell(); 
-
 	while (1) { 
-		// print shell line 
 		printDir();
-		// take input 
-		//takeInput returns 1 if length of given command is 0
 		if (takeInput(inputString)) 
-			continue; 
-		// process 
+			continue;  
 		execFlag = processString(inputString, 
-		parsedArgs, parsedArgsPiped); 
-		// execflag returns zero if there is no command 
-		// or it is a builtin command, 
-		// 1 if it is a simple command 
-		// 2 if it is including a pipe. 
-
-		// execute 
+		parsedArgs); 
 		if (execFlag == 1) 
-			execArgs(parsedArgs); 
-
+			execArgs(parsedArgs);
 		if (execFlag == 2) 
-			execArgsPiped(parsedArgs, parsedArgsPiped); 
+			execArgsPiped(parsedArgs); 
 	} 
 	return 0; 
 } 
