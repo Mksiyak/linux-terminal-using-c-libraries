@@ -9,6 +9,7 @@
 #include<sys/wait.h>
 #include<readline/readline.h> 
 #include<fcntl.h>
+#include <limits.h>
 //to make command history 
 //install this library by followng command //////////////////////sudo apt-get install libreadline-dev/////////////////////
 #include<readline/history.h> 
@@ -55,6 +56,7 @@ int takeInput(char* str)
 	buf = readline("\n>>> ");
 	buf = remove_spaces(buf); 
 	if (strlen(buf) != 0) { 
+		// Add to history if buffer length is more than zero
 		add_history(buf);
 		strcpy(str, buf); 
 		return 0; 
@@ -67,7 +69,9 @@ void printDir()
 { 
 	char cwd[1024]; 
 	getcwd(cwd, sizeof(cwd)); 
-	printf("\n%s@Dir: %s",userr,cwd); 
+	char hostname[HOST_NAME_MAX];
+	gethostname(hostname,HOST_NAME_MAX);
+	printf("\n%s@%s: %s",userr,hostname,cwd); 
 } 
 
 void execArgs(char*** parsed) 
@@ -185,7 +189,7 @@ void execArgsPiped(char*** parsed)
 
 void openHelp() 
 { 
-	puts("\n***WELCOME TO HELP***"
+	puts("\n***Operating System Mini Project***"
 		"\nList of Commands supported:"
 		"\n>cd"
 		"\n>ls"
@@ -340,10 +344,10 @@ int main()
 	init_shell(); 
 	while (1) { 
 		printDir();
+		// Make sure input len > 0. Also save in buffer if > 0.
 		if (takeInput(inputString)) 
 			continue;  
-		execFlag = processString(inputString, 
-		parsedArgs); 
+		execFlag = processString(inputString, parsedArgs); 
 		if (execFlag == 1) 
 			execArgs(parsedArgs);
 		if (execFlag == 2) 
