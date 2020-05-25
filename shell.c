@@ -19,7 +19,11 @@
 
 // Clearing the shell using escape sequences 
 #define clear() printf("\033[H\033[J") 
- 
+
+/*
+* //TODO
+* - Commands like "cd", "cd /", "cd ~" are not observed.
+*/
 char userr[1000];
 int no_of_pipes = 0;
 // will be executed when shell will start
@@ -251,8 +255,10 @@ int findpathof(char *pth,char *exe)
      return found;
 }
 
+
 int ownCmdHandler(char** parsed) 
 { 
+	//Custom commands specific to our shell
 	int NoOfOwnCmds = 4, i, switchOwnArg = 0; 
 	char* ListOfOwnCmds[NoOfOwnCmds]; 
 	char* username,path[5000]; 
@@ -324,11 +330,11 @@ int processString(char* str, char*** parsed)
 
 	char* strpiped[MAXLIST]; 
 	parsePipe(str, strpiped); 
-        for(int i=0;i<=no_of_pipes;i++)
+    for(int i=0;i<=no_of_pipes;i++)
 		parseSpace(strpiped[i], parsed[i]);
-        if(no_of_pipes==0 && ownCmdHandler(parsed[0]))
+    if(no_of_pipes==0 && ownCmdHandler(parsed[0]))
         return 0;
-		return 1+(no_of_pipes>0) ; 
+	return 1+(no_of_pipes>0) ; 
 } 
 int main() 
 { 
