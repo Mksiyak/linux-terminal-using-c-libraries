@@ -39,7 +39,7 @@ char* remove_spaces(char* s)
 }
 void init_shell() 
 { 
-	clear(); 
+	clear();
 	printf("\nOperating Systems Mini Project");
 	printf("\n*******************************"); 
 	char* username = getenv("USER"); 
@@ -51,6 +51,30 @@ void init_shell()
 	if(!strlen(temp))temp = username;
 	strcpy(userr,temp);
 	clear();
+	char **rcload;
+	rcload = calloc(MAXLIST,sizeof(char *));
+	for (int i = 0; i < MAXLIST; i++)
+	{
+		rcload[i] = calloc(MAXLIST,sizeof(char));
+		rcload[i] = NULL;
+	}
+	rcload[0] = "./welcome.sh";
+	puts(rcload[0]);
+	sleep(2);
+	pid_t pid  = fork();
+	if (pid == -1) { 
+		printf("\nFailed forking child.."); 
+		return; 
+	} else if (pid == 0) { 
+		if (execvp(rcload[0],rcload) < 0) {
+			printf("\nCowsay won't Talk Today"); 
+		}
+		exit(0); 
+	} else { 
+		wait(NULL); 
+		return; 
+	}
+	sleep(1);
 } 
 
 // Function to take input 
@@ -111,7 +135,7 @@ void execArgs(char*** parsed)
 			int fp = open(out,O_CREAT | O_APPEND | O_WRONLY);
 			dup2(fp,STDOUT_FILENO);
 		}
-		if (execvp(file, argv) < 0) { 
+		if (execvp(file, argv) < 0) {
 			printf("\nCould not execute command.."); 
 		}
 		exit(0); 
@@ -277,8 +301,11 @@ int ownCmdHandler(char** parsed)
 	switch (switchOwnArg) { 
 	case 1: 
 		printf("\nGoodbye\n"); 
+		sleep(1);
 		exit(0); 
 	case 2: 
+		puts(parsed[1]);
+		parsed[1] = "./welcome.sh";
 		chdir(parsed[1]); 
 		return 1; 
 	case 3: 
@@ -347,7 +374,7 @@ int main()
     	}
 	}
 	int execFlag = 0; 
-	init_shell(); 
+	init_shell();
 	while (1) { 
 		printDir();
 		// Make sure input len > 0. Also save in buffer if > 0.
